@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google Drive PDF Embed Code Generator</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1c22;
+    --muted: #6b7280;
+    --accent: #3b6ee0;
+    --accent-dark: #2d55b3;
+    --success: #1f9d55;
+    --danger: #d64545;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .wrap {
+    width: 100%;
+    max-width: 720px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  p.sub {
+    color: var(--muted);
+    margin-top: 0;
+    margin-bottom: 24px;
+    font-size: 14px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  input[type="text"] {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type="text"]:focus {
+    border-color: var(--accent);
+  }
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .error {
+    font-size: 13px;
+    color: var(--danger);
+    margin-top: 8px;
+    display: none;
+  }
+  .size-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .size-row > div { flex: 1; }
+  .result {
+    display: none;
+  }
+  .result.show { display: block; }
+  textarea {
+    width: 100%;
+    min-height: 90px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fafbfc;
+    color: var(--text);
+    resize: vertical;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 12px;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: var(--accent-dark); }
+  .btn.copied { background: var(--success); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: #f0f4fd; }
+  iframe.preview {
+    width: 100%;
+    height: 480px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 16px;
+  }
+  .row-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .row-between label { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Google Drive PDF embed code generator</h1>
+  <p class="sub">Paste a Google Drive PDF share link. Get ready-to-use embed code for your website.</p>
+
+  <div class="card">
+    <label for="driveLink">Google Drive PDF link</label>
+    <input type="text" id="driveLink" placeholder="https://drive.google.com/file/d/FILE_ID/view" />
+    <div class="error" id="errorMsg">Couldn't find a valid Google Drive file ID in that link. Check the URL and try again.</div>
+    <div class="hint">Note: the file's sharing setting must be "Anyone with the link" for the embed to work for visitors.</div>
+
+    <div class="size-row">
+      <div>
+        <label for="widthInput">Width</label>
+        <input type="text" id="widthInput" value="100%" />
+      </div>
+      <div>
+        <label for="heightInput">Height (px)</label>
+        <input type="text" id="heightInput" value="600" />
+      </div>
+    </div>
+
+    <button class="btn" id="generateBtn">Generate embed code</button>
+  </div>
+
+  <div class="card result" id="resultCard">
+    <div class="row-between">
+      <label>Embed code</label>
+      <button class="btn" id="copyBtn" style="margin-top:0;">Copy code</button>
+    </div>
+    <textarea id="embedOutput" readonly></textarea>
+
+    <label style="margin-top:20px;">Live preview</label>
+    <iframe class="preview" id="previewFrame"></iframe>
+  </div>
+</div>
+
+<script>
+function extractFileId(url) {
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /\/d\/([a-zA-Z0-9_-]+)/
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+const generateBtn = document.getElementById('generateBtn');
+const errorMsg = document.getElementById('errorMsg');
+const resultCard = document.getElementById('resultCard');
+const embedOutput = document.getElementById('embedOutput');
+const previewFrame = document.getElementById('previewFrame');
+const copyBtn = document.getElementById('copyBtn');
+const driveLinkInput = document.getElementById('driveLink');
+
+function generate() {
+  const url = driveLinkInput.value.trim();
+  const fileId = extractFileId(url);
+
+  if (!fileId) {
+    errorMsg.style.display = 'block';
+    resultCard.classList.remove('show');
+    return;
+  }
+  errorMsg.style.display = 'none';
+
+  const width = document.getElementById('widthInput').value.trim() || '100%';
+  const height = document.getElementById('heightInput').value.trim() || '600';
+  const embedUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+
+  const code = `<iframe src="${embedUrl}" width="${width}" height="${height}" allow="autoplay"></iframe>`;
+
+  embedOutput.value = code;
+  previewFrame.src = embedUrl;
+  resultCard.classList.add('show');
+}
+
+generateBtn.addEventListener('click', generate);
+driveLinkInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') generate();
+});
+
+copyBtn.addEventListener('click', () => {
+  embedOutput.select();
+  navigator.clipboard.writeText(embedOutput.value).then(() => {
+    copyBtn.textContent = 'Copied!';
+    copyBtn.classList.add('copied');
+    setTimeout(() => {
+      copyBtn.textContent = 'Copy code';
+      copyBtn.classList.remove('copied');
+    }, 1500);
+  });
+});
+</script>
+</body>
+</html>
